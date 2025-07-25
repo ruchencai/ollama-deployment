@@ -1,0 +1,20 @@
+# docker-compose.yml (updated)
+services:
+  qwen-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_NAME=qwen2.5:0.5b
+      - OLLAMA_URL=http://localhost:11434
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+        reservations:
+          memory: 8G
+
+volumes:
+  ollama_data:
