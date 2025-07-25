@@ -1,14 +1,12 @@
-FROM --platform=linux/amd64 python:3.11-slim
+FROM your-registry/vbase-images/ubi9-minimal/python3.12-runtime
 
-# Install system dependencies with better error handling
-RUN apt-get update && apt-get install -y \
-    curl \
-    procps \
-    ca-certificates \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /tmp/* \
-    && rm -rf /var/tmp/*
+# Install system dependencies using microdnf (not apt-get)
+RUN microdnf update -y && \
+    microdnf install -y \
+        curl \
+        procps-ng \
+        ca-certificates \
+    && microdnf clean all
 
 WORKDIR /app
 
@@ -16,16 +14,13 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Ollama with error handling
-RUN curl -fsSL https://ollama.ai/install.sh | sh || \
-    (echo "Ollama install failed, trying alternative..." && \
-     curl -L https://ollama.ai/download/ollama-linux-amd64 -o /usr/local/bin/ollama && \
-     chmod +x /usr/local/bin/ollama)
+# Install Ollama
+RUN curl -fsSL https://ollama.ai/install.sh | sh
 
 # Copy application code
 COPY app.py .
 
-# Create robust startup script
+# Create startup script
 RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
@@ -34,12 +29,12 @@ ollama serve &\n\
 OLLAMA_PID=$!\n\
 \n\
 echo "=== Waiting for Ollama to be ready ==="\n\
-for i in {1..60}; do\n\
+for i in {1..30}; do\n\
     if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then\n\
         echo "✅ Ollama is ready!"\n\
         break\n\
     fi\n\
-    echo "⏳ Waiting for Ollama... ($i/60)"\n\
+    echo "⏳ Waiting for Ollama... ($i/30)"\n\
     sleep 2\n\
 done\n\
 \n\
@@ -50,7 +45,7 @@ exec python -u app.py\n\
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=30s --start-period=300s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=30s --start-period=180s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 CMD ["./start.sh"]
